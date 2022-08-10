@@ -1,0 +1,70 @@
+{
+  "name": "theme-variables-intellisense",
+  "displayName": "Theme Variables Intellisense",
+  "description": "Navigo3 Theme Variables Intellisense",
+  "version": "0.0.1",
+  "publisher": "Jakub Hloušek",
+  "engines": {
+    "vscode": "^1.51.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "theme-variables-intellisense.say",
+        "title": "ThemeVars"
+      },
+      {
+        "command": "theme-variables-intellisense.backwards",
+        "title": "ThemeVars (↹)"
+      }
+    ],
+    "configuration": {
+      "title": "Navigo3 Theme Object Intellisense",
+      "type": "object",
+      "properties": {
+        "theme-variables-intellisense.themeObjectPaths": {
+          "scope": "window",
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "menus": {
+      "editor/title": [
+        {
+          "command": "theme-variables-intellisense.backwards",
+          "group": "navigation",
+          "when": "resourceScheme == theme-variables-intellisense"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "theme-variables-intellisense.backwards",
+          "when": "resourceScheme == theme-variables-intellisense"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^8.10.25",
+    "@types/vscode": "^1.70.0",
+    "tslint": "^5.16.0",
+    "typescript": "^3.4.5",
+    "vscode": "^1.1.37"
+  }
+}
