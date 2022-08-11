@@ -76,7 +76,11 @@ function getIntellisenseItems(obj: object): Array<vscode.CompletionItem> {
 }
 
 function parseColorString(key: string): vscode.Color {
-  const color = HSLAToHexA(ThemeObjects.get(usedKey).values[key].value)
+  let themeObjectKey = ThemeObjects.get(usedKey).values[key]
+
+  if (!themeObjectKey) return undefined
+
+  const color = HSLAToHexA(themeObjectKey.value)
   if (!color) return undefined
 
   let [r, g, b, a] = color
@@ -88,8 +92,11 @@ function parseColorString(key: string): vscode.Color {
 function getPos(text: string, index: number): vscode.Position {
   const nMatches = Array.from(text.slice(0, index).matchAll(/\n/g))
 
-  const lineNumber = nMatches.length
+  if (nMatches.length === 0) {
+    return new vscode.Position(0, index)
+  }
 
+  const lineNumber = nMatches.length
   const characterIndex = index - nMatches[lineNumber - 1].index
 
   return new vscode.Position(lineNumber, characterIndex - 1)
@@ -104,47 +111,36 @@ interface Match {
 
 class Matcher {
   static getMatches(text: string): Match[] {
-    const matches = text.matchAll(/var\((--[^)]*)\)/g)
-    return Array.from(matches).map((match) => {
-      const t = match[1]
-      const length = t.length
+    const matches = text.matchAll(/var\((--[^)]+)\)/g)
 
-      const range = new vscode.Range(getPos(text, match.index + 4), getPos(text, match.index + 4 + t.length))
+    return Array.from(matches)
+      .map((match) => {
+        const t = match[1]
 
-      const color = parseColorString(t)
+        const range = new vscode.Range(getPos(text, match.index + 4), getPos(text, match.index + 4 + t.length))
+        const color = parseColorString(t)
 
-      if (color) {
-        return {
-          color,
-          type: "hsla",
-          length,
-          range,
-        } as Match
-      }
-    })
+        if (color) {
+          return {
+            color,
+            type: "hsla",
+            length: t.length,
+            range,
+          } as Match
+        }
+      })
+      .filter((match) => match !== undefined)
   }
 }
 
 class Picker {
   constructor() {
-    let subscriptions: vscode.Disposable[] = []
-    vscode.workspace.onDidChangeTextDocument(this._onDidChangeTextDocument, this, subscriptions)
-    vscode.workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, subscriptions)
     this.register()
   }
 
   private get languages() {
-    representation
     return ["scss"]
   }
-
-  private _onDidChangeTextDocument(e: vscode.TextDocumentChangeEvent) {
-    const editor = vscode.window.activeTextEditor
-    const document = e.document
-    const text = document.getText()
-  }
-
-  private _onDidChangeConfiguration() {}
 
   private register() {
     this.languages.forEach((language) => {

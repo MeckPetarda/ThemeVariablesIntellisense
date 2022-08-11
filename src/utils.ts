@@ -1,5 +1,3 @@
-"use strict"
-
 export function HSLAToHexAString(hsla): string {
   let res = HSLAToHexA(hsla)
 

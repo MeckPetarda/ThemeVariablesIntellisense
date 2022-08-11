@@ -5,7 +5,7 @@
   "version": "0.0.1",
   "publisher": "Jakub Hloušek",
   "engines": {
-    "vscode": "^1.51.0"
+    "vscode": "^1.70.0"
   },
   "categories": [
     "Other"
@@ -38,34 +38,22 @@
           }
         }
       }
-    },
-    "menus": {
-      "editor/title": [
-        {
-          "command": "theme-variables-intellisense.backwards",
-          "group": "navigation",
-          "when": "resourceScheme == theme-variables-intellisense"
-        }
-      ],
-      "commandPalette": [
-        {
-          "command": "theme-variables-intellisense.backwards",
-          "when": "resourceScheme == theme-variables-intellisense"
-        }
-      ]
     }
   },
   "capabilities": {
     "colorProvider": "true"
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "vscode:prepublish": "npm run esbuild-base -- --minify",
+    "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
+    "esbuild": "npm run esbuild-base -- --sourcemap",
+    "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
+    "test-compile": "tsc -p ./"
   },
   "devDependencies": {
     "@types/node": "^8.10.25",
     "@types/vscode": "^1.70.0",
+    "esbuild": "^0.15.1",
     "tslint": "^5.16.0",
     "typescript": "^3.4.5",
     "vscode": "^1.1.37"
