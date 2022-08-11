@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { HSLAToHexA } from "./utils"
+import { HSLAToHexA, HSLAToHexAString } from "./utils"
 const { readFile, writeFile } = require("fs").promises
 
 const usedKey = "light"
@@ -7,16 +7,12 @@ const usedKey = "light"
 function transpileJSON(obj: object, rawObj: string, lineNumber = { value: 0 }, prefix: string = "--"): any {
   let res = {}
 
-  console.log(lineNumber.value, rawObj.split("\n")[lineNumber.value])
   lineNumber.value++
 
   for (let [key, value] of Object.entries(obj)) {
-    console.log(lineNumber.value, rawObj.split("\n")[lineNumber.value])
     let capitalizedKey = prefix == "--" ? key : key.charAt(0).toUpperCase() + key.slice(1)
 
     if (typeof value == "string") {
-      console.log(rawObj.split("\n")[lineNumber.value], key)
-
       res[`${prefix}${capitalizedKey}`] = {
         value,
         lineNumber: lineNumber.value,
@@ -28,7 +24,6 @@ function transpileJSON(obj: object, rawObj: string, lineNumber = { value: 0 }, p
       res = { ...res, ...transpileJSON(value, rawObj, lineNumber, `${prefix}${capitalizedKey}`) }
     }
   }
-  console.log(lineNumber.value, rawObj.split("\n")[lineNumber.value])
   lineNumber.value++
 
   return res
@@ -61,7 +56,6 @@ async function getThemeObjects() {
   themeObjectPaths.forEach((path) => {
     let key = /([^\\]+)\.theme.json/.exec(path)[1]
     readFile(path, "utf-8").then((res: string) => {
-      console.log(res)
       ThemeObjects.set(key, { path, values: transpileJSON(JSON.parse(res), res) })
     })
   })
@@ -70,19 +64,109 @@ async function getThemeObjects() {
 function getIntellisenseItems(obj: object): Array<vscode.CompletionItem> {
   let res = []
 
-  // for (let [key, value] of Object.entries(obj)) {
-  //   console.log(value, HSLAToHexA(value))
-  // }
-
   for (let [key, valueObj] of Object.entries(obj)) {
     let item = new vscode.CompletionItem(key, vscode.CompletionItemKind.Color)
     let documentation = new vscode.MarkdownString(valueObj.value)
-    item.detail = HSLAToHexA(valueObj.value)
+    item.detail = HSLAToHexAString(valueObj.value)
     item.documentation = documentation
     res.push(item)
   }
 
   return res
+}
+
+function parseColorString(key: string): vscode.Color {
+  const color = HSLAToHexA(ThemeObjects.get(usedKey).values[key].value)
+  if (!color) return undefined
+
+  let [r, g, b, a] = color
+
+  if (a) return new vscode.Color(r / 255, g / 255, b / 255, a / 255)
+  return new vscode.Color(r / 255, g / 255, b / 255, 1)
+}
+
+function getPos(text: string, index: number): vscode.Position {
+  const nMatches = Array.from(text.slice(0, index).matchAll(/\n/g))
+
+  const lineNumber = nMatches.length
+
+  const characterIndex = index - nMatches[lineNumber - 1].index
+
+  return new vscode.Position(lineNumber, characterIndex - 1)
+}
+
+interface Match {
+  color: vscode.Color
+  type: string
+  length: number
+  range: vscode.Range
+}
+
+class Matcher {
+  static getMatches(text: string): Match[] {
+    const matches = text.matchAll(/var\((--[^)]*)\)/g)
+    return Array.from(matches).map((match) => {
+      const t = match[1]
+      const length = t.length
+
+      const range = new vscode.Range(getPos(text, match.index + 4), getPos(text, match.index + 4 + t.length))
+
+      const color = parseColorString(t)
+
+      if (color) {
+        return {
+          color,
+          type: "hsla",
+          length,
+          range,
+        } as Match
+      }
+    })
+  }
+}
+
+class Picker {
+  constructor() {
+    let subscriptions: vscode.Disposable[] = []
+    vscode.workspace.onDidChangeTextDocument(this._onDidChangeTextDocument, this, subscriptions)
+    vscode.workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, subscriptions)
+    this.register()
+  }
+
+  private get languages() {
+    representation
+    return ["scss"]
+  }
+
+  private _onDidChangeTextDocument(e: vscode.TextDocumentChangeEvent) {
+    const editor = vscode.window.activeTextEditor
+    const document = e.document
+    const text = document.getText()
+  }
+
+  private _onDidChangeConfiguration() {}
+
+  private register() {
+    this.languages.forEach((language) => {
+      vscode.languages.registerColorProvider(language, {
+        provideDocumentColors(document: vscode.TextDocument, token: vscode.CancellationToken) {
+          const matches = Matcher.getMatches(document.getText())
+
+          return matches.map((match, i) => new vscode.ColorInformation(match.range, match.color))
+        },
+        provideColorPresentations(color: vscode.Color, context: { document: vscode.TextDocument; range: vscode.Range }, token: vscode.CancellationToken) {
+          let cssVariable = context.document.getText(context.range)
+
+          let colorValue = ThemeObjects.get(usedKey).values[cssVariable].value
+          if (!colorValue) return undefined
+
+          return new vscode.ColorPresentation(colorValue)
+        },
+      })
+    })
+  }
+
+  dispose() {}
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -109,16 +193,10 @@ export function activate(context: vscode.ExtensionContext) {
       provideDefinition(document: vscode.TextDocument, position: vscode.Position) {
         let definitionQuarryString = document.getText(document.getWordRangeAtPosition(position))
 
-        console.log(definitionQuarryString)
-
         const selectedTheme = ThemeObjects.get(usedKey)
         const definitionQuarryObject = selectedTheme.values[definitionQuarryString]
 
-        console.log(selectedTheme, definitionQuarryObject)
-
         if (!definitionQuarryObject) return null
-
-        console.log(vscode.Uri.parse(selectedTheme.path))
 
         return new vscode.Location(
           vscode.Uri.file(selectedTheme.path),
@@ -132,6 +210,9 @@ export function activate(context: vscode.ExtensionContext) {
   )
 
   context.subscriptions.push(doubleMinusProvider, definitionProvider)
+
+  const picker = new Picker()
+  context.subscriptions.push(picker)
 }
 
 // this method is called when your extension is deactivated
