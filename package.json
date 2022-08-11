@@ -4,6 +4,8 @@
   "description": "Navigo3 Theme Variables Intellisense",
   "version": "0.0.1",
   "publisher": "Jakub Hloušek",
+  "repository": "https://github.com/MeckPetarda/ThemeVariablesIntellisense",
+  "icon": "img/icon.png",
   "engines": {
     "vscode": "^1.70.0"
   },
@@ -15,16 +17,6 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "theme-variables-intellisense.say",
-        "title": "ThemeVars"
-      },
-      {
-        "command": "theme-variables-intellisense.backwards",
-        "title": "ThemeVars (↹)"
-      }
-    ],
     "configuration": {
       "title": "Navigo3 Theme Object Intellisense",
       "type": "object",
