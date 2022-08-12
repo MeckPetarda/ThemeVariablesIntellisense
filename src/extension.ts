@@ -2,7 +2,7 @@ import * as vscode from "vscode"
 import { HSLAToHexA, HSLAToHexAString } from "./utils"
 const { readFile, writeFile } = require("fs").promises
 
-const usedKey = "light"
+let usedKey = "light"
 
 function transpileJSON(obj: object, rawObj: string, lineNumber = { value: 0 }, prefix: string = "--"): any {
   let res = {}
@@ -205,7 +205,13 @@ export function activate(context: vscode.ExtensionContext) {
     }
   )
 
-  context.subscriptions.push(doubleMinusProvider, definitionProvider)
+  const changeThemeCommand = vscode.commands.registerCommand("theme-variables-intellisense.changeTheme", async () => {
+    vscode.window.showQuickPick([...ThemeObjects.keys()], { placeHolder: "Select new theme", canPickMany: false }).then((value) => {
+      usedKey = value
+    })
+  })
+
+  context.subscriptions.push(doubleMinusProvider, definitionProvider, changeThemeCommand)
 
   const picker = new Picker()
   context.subscriptions.push(picker)

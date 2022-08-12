@@ -17,6 +17,10 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "commands": {
+      "command": "theme-variables-intellisense.changeTheme",
+      "title": "Select color Theme"
+    },
     "configuration": {
       "title": "Navigo3 Theme Object Intellisense",
       "type": "object",
