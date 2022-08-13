@@ -44,7 +44,8 @@
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
     "esbuild": "npm run esbuild-base -- --sourcemap",
     "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
-    "test-compile": "tsc -p ./"
+    "test-compile": "tsc -p ./",
+    "build": "node ./node_modules/vsce/vsce package --allow-star-activation --out \"theme-variables-intellisense.vsix\""
   },
   "devDependencies": {
     "@types/node": "^8.10.25",
@@ -52,6 +53,7 @@
     "esbuild": "^0.15.1",
     "tslint": "^5.16.0",
     "typescript": "^3.4.5",
+    "vsce": "^2.10.0",
     "vscode": "^1.1.37"
   }
 }
