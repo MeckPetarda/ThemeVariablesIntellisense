@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { HSLAToHexA, HSLAToHexAString } from "./utils"
+import { HSLAToHexA } from "./utils"
 const { readFile, writeFile } = require("fs").promises
 
 let usedKey = "light"
@@ -66,9 +66,7 @@ function getIntellisenseItems(obj: object): Array<vscode.CompletionItem> {
 
   for (let [key, valueObj] of Object.entries(obj)) {
     let item = new vscode.CompletionItem(key, vscode.CompletionItemKind.Color)
-    let documentation = new vscode.MarkdownString(valueObj.value)
-    item.detail = HSLAToHexAString(valueObj.value)
-    item.documentation = documentation
+    item.detail = valueObj.value
     res.push(item)
   }
 
@@ -85,7 +83,7 @@ function parseColorString(key: string): vscode.Color {
 
   let [r, g, b, a] = color
 
-  if (a) return new vscode.Color(r / 255, g / 255, b / 255, a / 255)
+  if (a) return new vscode.Color(r / 255, g / 255, b / 255, a)
   return new vscode.Color(r / 255, g / 255, b / 255, 1)
 }
 
@@ -148,10 +146,17 @@ class Picker {
         provideDocumentColors(document: vscode.TextDocument, token: vscode.CancellationToken) {
           const matches = Matcher.getMatches(document.getText())
 
-          return matches.map((match, i) => new vscode.ColorInformation(match.range, match.color))
+          console.log(matches)
+
+          return matches.map((match, i) => {
+            console.dir(match.color)
+            return new vscode.ColorInformation(match.range, match.color)
+          })
         },
         provideColorPresentations(color: vscode.Color, context: { document: vscode.TextDocument; range: vscode.Range }, token: vscode.CancellationToken) {
           let cssVariable = context.document.getText(context.range)
+
+          console.log(cssVariable)
 
           let colorValue = ThemeObjects.get(usedKey).values[cssVariable].value
           if (!colorValue) return undefined
