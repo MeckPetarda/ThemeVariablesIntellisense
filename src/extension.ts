@@ -1,64 +1,67 @@
 import * as vscode from "vscode"
-import { HSLAToHexA } from "./utils"
-const { readFile, writeFile } = require("fs").promises
+import { getPos, HSLAToHexA, transpileJSON } from "./utils"
+const { readFile } = require("fs").promises
 
-let usedKey = "light"
+let usedKey = null
 
-function transpileJSON(obj: object, rawObj: string, lineNumber = { value: 0 }, prefix: string = "--"): any {
-  let res = {}
+let ThemeMap = new Map()
+let watchers = []
+type optionObject = { id: string; path: string }
 
-  lineNumber.value++
+async function handleFileSelect(themeObjects: Array<optionObject>, extensionConfiguration: vscode.WorkspaceConfiguration) {
+  let dialog: Array<vscode.Uri> = await vscode.window.showOpenDialog({
+    canSelectMany: true,
+    openLabel: "Select theme files",
+    filters: {
+      "Theme files": ["theme.json"],
+    },
+  })
 
-  for (let [key, value] of Object.entries(obj)) {
-    let capitalizedKey = prefix == "--" ? key : key.charAt(0).toUpperCase() + key.slice(1)
+  if (dialog.length === 0) return
 
-    if (typeof value == "string") {
-      res[`${prefix}${capitalizedKey}`] = {
-        value,
-        lineNumber: lineNumber.value,
-        character: rawObj.split("\n")[lineNumber.value].search(key),
-        length: key.length,
-      }
-      lineNumber.value++
-    } else {
-      res = { ...res, ...transpileJSON(value, rawObj, lineNumber, `${prefix}${capitalizedKey}`) }
-    }
-  }
-  lineNumber.value++
+  let newThemeObjects: Array<optionObject> = dialog.reduce((acc: Array<optionObject>, curr: vscode.Uri) => {
+    let key = /([^\\]+)\.theme.json/.exec(curr.fsPath)[1]
 
-  return res
+    if (!Object.keys(themeObjects).includes(key)) acc.push({ id: key, path: curr.fsPath })
+    return acc
+  }, [])
+
+  themeObjects = themeObjects.concat(newThemeObjects)
+
+  extensionConfiguration.update("themeObjectPaths", themeObjects, vscode.ConfigurationTarget.Global)
+
+  themeObjects.forEach(({ id, path }) => {
+    watchers.push(watcher)
+    readFile(path, "utf-8").then((res: string) => {
+      ThemeMap.set(id, { path, values: transpileJSON(JSON.parse(res), res) })
+    })
+  })
 }
 
-let ThemeObjects = new Map()
+async function addThemes() {
+  const extensionConfiguration = vscode.workspace.getConfiguration("theme-variables-intellisense")
+  let themeObjects: Array<optionObject> = extensionConfiguration.get<Array<optionObject>>("themeObjectPaths")
+
+  handleFileSelect(themeObjects, extensionConfiguration)
+}
 
 async function getThemeObjects() {
   const extensionConfiguration = vscode.workspace.getConfiguration("theme-variables-intellisense")
-  let themeObjectPaths: Array<string> = extensionConfiguration.get("themeObjectPaths")
+  let themeObjects: Array<optionObject> = extensionConfiguration.get<Array<optionObject>>("themeObjectPaths")
 
-  if (themeObjectPaths.length === 0) {
-    let dialog = vscode.window.showOpenDialog({
-      canSelectMany: true,
-      openLabel: "Select theme files",
-      filters: {
-        "Theme files": ["theme.json"],
-      },
-    })
+  if (themeObjects.length === 0) {
+    let notification = await vscode.window.showWarningMessage(
+      "Extension found no valid theme objects which this extension can't work without. Would you want to add them now?",
+      { id: 0, title: "Yes" },
+      { id: 1, title: "Maybe later" }
+    )
 
-    themeObjectPaths = (await dialog).map((e) => e.fsPath)
-
-    extensionConfiguration.update("themeObjectPaths", themeObjectPaths, vscode.ConfigurationTarget.Global)
+    if (notification.id == 0) {
+      handleFileSelect(themeObjects, extensionConfiguration)
+    } else {
+      vscode.window.showInformationMessage('Add them anytime by running the "Add color Themes" command')
+    }
   }
-
-  if (themeObjectPaths) {
-    themeObjectPaths.forEach((e) => console.log("Selected file: " + e))
-  }
-
-  themeObjectPaths.forEach((path) => {
-    let key = /([^\\]+)\.theme.json/.exec(path)[1]
-    readFile(path, "utf-8").then((res: string) => {
-      ThemeObjects.set(key, { path, values: transpileJSON(JSON.parse(res), res) })
-    })
-  })
 }
 
 function getIntellisenseItems(obj: object): Array<vscode.CompletionItem> {
@@ -74,8 +77,7 @@ function getIntellisenseItems(obj: object): Array<vscode.CompletionItem> {
 }
 
 function parseColorString(key: string): vscode.Color {
-  let themeObjectKey = ThemeObjects.get(usedKey).values[key]
-
+  let themeObjectKey = ThemeMap.get(usedKey).values[key]
   if (!themeObjectKey) return undefined
 
   const color = HSLAToHexA(themeObjectKey.value)
@@ -85,19 +87,6 @@ function parseColorString(key: string): vscode.Color {
 
   if (a) return new vscode.Color(r / 255, g / 255, b / 255, a)
   return new vscode.Color(r / 255, g / 255, b / 255, 1)
-}
-
-function getPos(text: string, index: number): vscode.Position {
-  const nMatches = Array.from(text.slice(0, index).matchAll(/\n/g))
-
-  if (nMatches.length === 0) {
-    return new vscode.Position(0, index)
-  }
-
-  const lineNumber = nMatches.length
-  const characterIndex = index - nMatches[lineNumber - 1].index
-
-  return new vscode.Position(lineNumber, characterIndex - 1)
 }
 
 interface Match {
@@ -143,7 +132,7 @@ class Picker {
   private register() {
     this.languages.forEach((language) => {
       vscode.languages.registerColorProvider(language, {
-        provideDocumentColors(document: vscode.TextDocument, token: vscode.CancellationToken) {
+        provideDocumentColors(document: vscode.TextDocument) {
           const matches = Matcher.getMatches(document.getText())
 
           console.log(matches)
@@ -153,12 +142,12 @@ class Picker {
             return new vscode.ColorInformation(match.range, match.color)
           })
         },
-        provideColorPresentations(color: vscode.Color, context: { document: vscode.TextDocument; range: vscode.Range }, token: vscode.CancellationToken) {
+        provideColorPresentations(color: vscode.Color, context: { document: vscode.TextDocument; range: vscode.Range }) {
           let cssVariable = context.document.getText(context.range)
 
           console.log(cssVariable)
 
-          let colorValue = ThemeObjects.get(usedKey).values[cssVariable].value
+          let colorValue = ThemeMap.get(usedKey).values[cssVariable].value
           if (!colorValue) return undefined
 
           return new vscode.ColorPresentation(colorValue)
@@ -182,7 +171,7 @@ export function activate(context: vscode.ExtensionContext) {
           return undefined
         }
 
-        return getIntellisenseItems(ThemeObjects.get(usedKey).values)
+        return getIntellisenseItems(ThemeMap.get(usedKey).values)
       },
     },
     "("
@@ -194,7 +183,7 @@ export function activate(context: vscode.ExtensionContext) {
       provideDefinition(document: vscode.TextDocument, position: vscode.Position) {
         let definitionQuarryString = document.getText(document.getWordRangeAtPosition(position))
 
-        const selectedTheme = ThemeObjects.get(usedKey)
+        const selectedTheme = ThemeMap.get(usedKey)
         const definitionQuarryObject = selectedTheme.values[definitionQuarryString]
 
         if (!definitionQuarryObject) return null
@@ -211,12 +200,14 @@ export function activate(context: vscode.ExtensionContext) {
   )
 
   const changeThemeCommand = vscode.commands.registerCommand("theme-variables-intellisense.changeTheme", async () => {
-    vscode.window.showQuickPick([...ThemeObjects.keys()], { placeHolder: "Select new theme", canPickMany: false }).then((value) => {
+    vscode.window.showQuickPick([...ThemeMap.keys()], { placeHolder: "Select new theme", canPickMany: false }).then((value) => {
       usedKey = value
     })
   })
 
-  context.subscriptions.push(doubleMinusProvider, definitionProvider, changeThemeCommand)
+  const addThemesCommand = vscode.commands.registerCommand("theme-variables-intellisense.addThemes", addThemes)
+
+  context.subscriptions.push(doubleMinusProvider, definitionProvider, changeThemeCommand, addThemesCommand)
 
   const picker = new Picker()
   context.subscriptions.push(picker)

@@ -17,10 +17,16 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
-    "commands": {
-      "command": "theme-variables-intellisense.changeTheme",
-      "title": "Select color Theme"
-    },
+    "commands": [
+      {
+        "command": "theme-variables-intellisense.changeTheme",
+        "title": "Theme Object Intellisense: Select color Theme"
+      },
+      {
+        "command": "theme-variables-intellisense.addThemes",
+        "title": "Theme Object Intellisense: Add color Themes"
+      }
+    ],
     "configuration": {
       "title": "Navigo3 Theme Object Intellisense",
       "type": "object",
@@ -30,7 +36,15 @@
           "type": "array",
           "description": "",
           "items": {
-            "type": "string"
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            }
           }
         }
       }
