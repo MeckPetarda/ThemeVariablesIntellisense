@@ -5,7 +5,6 @@ const { readFile } = require("fs").promises
 let usedKey = null
 
 let ThemeMap = new Map()
-let watchers = []
 type optionObject = { id: string; path: string }
 
 async function handleFileSelect(themeObjects: Array<optionObject>, extensionConfiguration: vscode.WorkspaceConfiguration) {
@@ -30,8 +29,9 @@ async function handleFileSelect(themeObjects: Array<optionObject>, extensionConf
 
   extensionConfiguration.update("themeObjectPaths", themeObjects, vscode.ConfigurationTarget.Global)
 
+  if (!usedKey) usedKey = themeObjects[0].id
+
   themeObjects.forEach(({ id, path }) => {
-    watchers.push(watcher)
     readFile(path, "utf-8").then((res: string) => {
       ThemeMap.set(id, { path, values: transpileJSON(JSON.parse(res), res) })
     })
@@ -61,6 +61,14 @@ async function getThemeObjects() {
     } else {
       vscode.window.showInformationMessage('Add them anytime by running the "Add color Themes" command')
     }
+  } else {
+    if (!usedKey) usedKey = themeObjects[0].id
+
+    themeObjects.forEach(({ id, path }) => {
+      readFile(path, "utf-8").then((res: string) => {
+        ThemeMap.set(id, { path, values: transpileJSON(JSON.parse(res), res) })
+      })
+    })
   }
 }
 
@@ -135,17 +143,10 @@ class Picker {
         provideDocumentColors(document: vscode.TextDocument) {
           const matches = Matcher.getMatches(document.getText())
 
-          console.log(matches)
-
-          return matches.map((match, i) => {
-            console.dir(match.color)
-            return new vscode.ColorInformation(match.range, match.color)
-          })
+          return matches.map((match, i) => new vscode.ColorInformation(match.range, match.color))
         },
         provideColorPresentations(color: vscode.Color, context: { document: vscode.TextDocument; range: vscode.Range }) {
           let cssVariable = context.document.getText(context.range)
-
-          console.log(cssVariable)
 
           let colorValue = ThemeMap.get(usedKey).values[cssVariable].value
           if (!colorValue) return undefined
